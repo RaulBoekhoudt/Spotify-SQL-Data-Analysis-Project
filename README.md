@@ -116,8 +116,8 @@ To assess performance, query execution was examined using `EXPLAIN ANALYSE`. A f
 
 **Observed metrics (before optimisation):**
 
-* Execution time: ~7 ms
-* Planning time: ~0.17 ms
+* Execution time: ~0.097 ms
+* Planning time: ~0.14 ms
 
 ---
 
@@ -148,26 +148,146 @@ This clearly demonstrates how targeted indexing can materially improve query per
 ### Entry Level
 
 1. Identify tracks exceeding one billion streams
+
+```sql
+SELECT track, stream FROM spotify WHERE stream >= 1_000_000_000;
+```
+
 2. List albums with corresponding artists
+
+```sql
+SELECT DISTINCT(artist, album) FROM spotify;
+```
+
 3. Aggregate total comments for licensed tracks
+
+```sql
+SELECT SUM(COMMENTS) AS total_comments FROM spotify WHERE licensed = TRUE;
+```
+
 4. Filter tracks released as singles
+
+```sql
+SELECT track FROM spotify WHERE album_type = 'single';
+```
+
 5. Count tracks per artist
+
+```sql
+SELECT 
+	artist, COUNT(DISTINCT(title)) AS total_songs
+FROM spotify 
+	GROUP BY artist 
+	ORDER BY total_songs ASC;
+```
+
 
 ### Intermediate Level
 
 1. Average danceability per album
+
+```sql
+SELECT 
+	album, AVG(danceability) AS avg_danceability 
+FROM spotify 
+	GROUP BY album
+	ORDER BY avg_danceability DESC;
+```
+
 2. Top five tracks by energy
+
+```sql
+SELECT 
+	track, artist, album, energy 
+FROM spotify 
+	ORDER BY energy DESC 
+	LIMIT 5;
+```
+
 3. Official video engagement analysis
+
+```sql
+SELECT track, 
+	SUM(views) as total_views,
+	SUM(likes) as total_likes 
+FROM spotify
+	WHERE official_video = TRUE
+	GROUP BY track -- tracks can be repeated, thus why we group to add
+	ORDER BY total_views DESC;
+```
+
 4. Album-level view aggregation
+
+```sql
+SELECT 
+	album,
+	track,
+	SUM(views) AS total_views
+FROM spotify
+	GROUP BY album, track -- tracks and albums can be repeated, thus the grouping
+	ORDER BY total_views DESC;
+```
+
 5. Platform comparison between Spotify and YouTube
+
+```sql
+SELECT * FROM
+	(SELECT
+		track,
+		COALESCE( SUM(CASE WHEN most_played_on = 'Spotify' THEN stream END), 0) as streamed_on_spotify,
+		COALESCE( SUM(CASE WHEN most_played_on = 'Youtube' THEN stream END), 0) AS streamed_on_youtube
+	FROM spotify
+	GROUP BY track) AS table1
+		WHERE streamed_on_spotify > streamed_on_youtube
+		AND streamed_on_youtube <> 0;
+```
+
 
 ### Advanced Level
 
 1. Top three tracks per artist using window functions
+
+```sql
+WITH ranking_artist AS (
+	SELECT
+		artist, track,
+		SUM(views) as total_views,
+		DENSE_RANK() OVER(PARTITION BY artist ORDER BY SUM(views) DESC) AS rank
+	FROM spotify
+		GROUP BY artist, track
+		ORDER BY artist, total_views DESC
+)
+SELECT * 
+FROM ranking_artist
+	WHERE rank <=3;
+```
+
 2. Tracks exceeding average liveness
+
+```sql
+SELECT
+	track,
+	artist,
+	liveness
+FROM spotify
+	WHERE liveness > (SELECT AVG(liveness) FROM spotify);
+```
+
 3. Album-level energy dispersion using CTEs
-4. Energy-to-liveness ratio analysis
-5. Cumulative likes ordered by views
+
+```sql
+WITH get_energy_values AS (
+	SELECT 
+		album,
+		MAX(energy) AS highest_energy,
+		MIN(energy) AS lowest_energy
+	FROM spotify
+		GROUP BY album
+)
+SELECT album, highest_energy - lowest_energy AS energy_difference 
+FROM get_energy_values
+	ORDER BY energy_difference DESC;
+```
 
 ---
 
