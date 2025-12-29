@@ -70,38 +70,49 @@ SELECT * FROM spotify WHERE LENGTH(album) = 0;
 SELECT track, artist FROM spotify GROUP BY track, artist;
 
 
+
 --------------------------------------------------------------------------
 -- Now we will go through a list of questions and answer them one by one
 --------------------------------------------------------------------------
 
 -- Easy Questions
 
--- Retrieve names of all tracks with more than 1 billion streams
+-- Q.1 Retrieve names of all tracks with more than 1 billion streams
 SELECT track, stream FROM spotify WHERE stream >= 1_000_000_000;
 
--- List all albums alongtheir respective artist
+-- Q.2 List all albums alongtheir respective artist
 SELECT DISTINCT(artist, album) FROM spotify;
 
--- Get total number of comments for licensed tracks
+-- Q.3 Get total number of comments for licensed tracks
 SELECT SUM(COMMENTS) AS total_comments FROM spotify WHERE licensed = TRUE;
 
--- Get the names of all singles
+-- Q.4 Get the names of all singles
 SELECT track FROM spotify WHERE album_type = 'single';
 
--- Count the total number of tracks per artist
-SELECT artist, COUNT(DISTINCT(title)) AS total_songs
-FROM spotify GROUP BY artist ORDER BY total_songs ASC;
+-- Q.5 Count the total number of tracks per artist
+SELECT 
+	artist, COUNT(DISTINCT(title)) AS total_songs
+FROM spotify 
+	GROUP BY artist 
+	ORDER BY total_songs ASC;
 
 
 -- Medium questions
 
 -- Q.1 Calculate average danceability of tracks per album
 
-SELECT album, AVG(danceability) AS avg_danceability FROM spotify GROUP BY album
-ORDER BY avg_danceability DESC;
+SELECT 
+	album, AVG(danceability) AS avg_danceability 
+FROM spotify 
+	GROUP BY album
+	ORDER BY avg_danceability DESC;
 
 -- Q.2 Find the top 5 tracks with the highest energy value
-SELECT track, artist, album, energy FROM spotify ORDER BY energy DESC LIMIT 5;
+SELECT 
+	track, artist, album, energy 
+FROM spotify 
+	ORDER BY energy DESC 
+	LIMIT 5;
 
 -- Q.3 List all tracks along with their views and likes where official_video = TRUE
 
@@ -109,9 +120,9 @@ SELECT track,
 	SUM(views) as total_views,
 	SUM(likes) as total_likes 
 FROM spotify
-WHERE official_video = TRUE
-GROUP BY track -- tracks can be repeated, thus why we group to add
-ORDER BY total_views DESC;
+	WHERE official_video = TRUE
+	GROUP BY track -- tracks can be repeated, thus why we group to add
+	ORDER BY total_views DESC;
 
 
 -- Q.4 For each album, calculate the total number of views of all associated tracks
@@ -121,18 +132,11 @@ SELECT
 	track,
 	SUM(views) AS total_views
 FROM spotify
-GROUP BY album, track -- tracks and albums can be repeated, thus the grouping
-ORDER BY total_views DESC;
+	GROUP BY album, track -- tracks and albums can be repeated, thus the grouping
+	ORDER BY total_views DESC;
 
--- Q.10	Retrieve the track names that have been streamed on spotify more than youtube
+-- Q.5	Retrieve the track names that have been streamed on spotify more than youtube
 
-SELECT 
-	track, 
-	SUM(stream) as total_streams,
-	most_played_on
-FROM spotify
-	GROUP BY track, most_played_on
-ORDER BY total_streams DESC;
 
 SELECT * FROM
 	(SELECT
@@ -140,9 +144,9 @@ SELECT * FROM
 		COALESCE( SUM(CASE WHEN most_played_on = 'Spotify' THEN stream END), 0) as streamed_on_spotify,
 		COALESCE( SUM(CASE WHEN most_played_on = 'Youtube' THEN stream END), 0) AS streamed_on_youtube
 	FROM spotify
-		GROUP BY track) AS table1
-WHERE streamed_on_spotify > streamed_on_youtube
-	AND streamed_on_youtube <> 0;
+	GROUP BY track) AS table1
+		WHERE streamed_on_spotify > streamed_on_youtube
+		AND streamed_on_youtube <> 0;
 
 
 -- Advanced questions
@@ -155,10 +159,11 @@ WITH ranking_artist AS (
 		SUM(views) as total_views,
 		DENSE_RANK() OVER(PARTITION BY artist ORDER BY SUM(views) DESC) AS rank
 	FROM spotify
-	GROUP BY artist, track
-	ORDER BY ratist, total_views DESC
+		GROUP BY artist, track
+		ORDER BY artist, total_views DESC
 )
-SELECT * FROM ranking_artist
+SELECT * 
+FROM ranking_artist
 	WHERE rank <=3;
 
 -- Q.2 Write a query to find tracks where the liveness score is above average
@@ -185,3 +190,17 @@ FROM get_energy_values
 
 
 
+--------------------------------------------------------------------------
+-- Optimization
+--------------------------------------------------------------------------
+
+CREATE INDEX artist_index ON spotify(artist);
+
+EXPLAIN ANALYZE
+SELECT
+	artist, track, views
+FROM spotify
+	WHERE artist = 'Gorillaz'
+		AND
+	most_played_on = 'Youtube'
+ORDER BY stream DESC LIMIT 25;
